@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>交通流量识别系统</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+<style>
+    body {
+        background: url('/static/images/background.jpg') no-repeat center center fixed;
+        background-size: cover;
+        color: #333;
+        margin: 0;
+        padding: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+    nav.navbar {
+        flex-shrink: 0;
+    }
+    .content-wrapper {
+        background: rgba(255, 255, 255, 0.85);
+        border-radius: 1rem;
+        padding: 1rem 2rem;
+        margin: 1rem auto;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        max-width: 1400px;
+        height: calc(100vh - 80px);
+        display: grid;
+        grid-template-rows: 6fr 4fr;
+        grid-template-columns: 1fr;
+        grid-gap: 1rem;
+    }
+    /* 视频行三列布局 */
+    .video-row {
+        display: grid;
+        grid-template-columns: 0.2fr 0.6fr 0.2fr;
+        gap: 1rem;
+        height: 100%;
+    }
+    .side-module {
+        background: #fff;
+        border-radius: 1rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        padding: 1rem;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        font-size: 0.9rem;
+        color: #555;
+        user-select: none;
+        /* 保证最小高度，避免内容为空时塌陷 */
+        min-height: 120px;
+    }
+    .video-center {
+        background: #fff;
+        border-radius: 1rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        display: flex;
+        flex-direction: column;
+        padding: 0;
+        overflow: hidden;
+        height: 100%;
+        position: relative;
+        cursor: pointer;
+    }
+    .video-center:hover::after {
+        content: "点击上传文件";
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(0,0,0,0.6);
+        color: white;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-size: 0.9rem;
+    }
+    .video-center video {
+        flex-grow: 1;
+        border-radius: 0.75rem;
+        object-fit: contain;
+        width: 100%;
+        height: 100%;
+        user-select: none;
+    }
+    .bottom-row {
+        display: grid;
+        grid-template-columns: 1fr 2fr;
+        gap: 1rem;
+        height: 100%;
+    }
+    .module-left, .module-right {
+        background: #fff;
+        border-radius: 1rem;
+        padding: 1rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        position: relative;
+    }
+    .module-left h5, .module-right h5 {
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+    .chart-container {
+        flex-grow: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border: 1px solid #dee2e6;
+        border-radius: 0.75rem;
+        overflow: hidden;
+        cursor: pointer;
+        position: relative;
+    }
+    canvas#inlineChart, canvas#countsPieChart {
+        max-width: 100%;
+        height: 100%;
+    }
+    .counts-summary-row {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+        justify-content: center;
+        max-height: 250px;
+    }
+    .counts-summary-row > div:first-child {
+        max-width: 250px;
+        max-height: 250px;
+        width: 250px;
+    }
+    .counts-summary-row > div:last-child {
+        flex-grow: 1;
+        max-height: 250px;
+        overflow-y: auto;
+    }
+    ul.list-group {
+        max-height: 250px;
+        overflow-y: auto;
+    }
+
+    /* 放大弹窗遮罩 */
+    #chartOverlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.6);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1050;
+        overflow: auto;
+        backdrop-filter: blur(3px);
+    }
+    #chartOverlay.active {
+        display: flex;
+    }
+
+    /* 放大图表容器 */
+    #chartOverlay .chart-popup {
+        background: white;
+        border-radius: 1rem;
+        padding: 1rem;
+        max-width: 90vw;
+        max-height: 90vh;
+        width: 1400px;
+        height: 600px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        transform: scale(0.2);
+        opacity: 0;
+        transition: transform 0.4s ease, opacity 0.4s ease;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+    }
+    #chartOverlay.active .chart-popup {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    /* 关闭按钮 */
+    #chartOverlay .close-btn {
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        background: #f44336;
+        border: none;
+        color: white;
+        font-weight: bold;
+        font-size: 1.2rem;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        cursor: pointer;
+        line-height: 32px;
+        text-align: center;
+    }
+    #chartOverlay .close-btn:hover {
+        background: #d32f2f;
+    }
+</style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="#">🚦 交通流量识别</a>
+        <a href="{{ url_for('answer') }}" class="btn btn-light btn-sm ms-3" role="button" aria-pressed="true">交规答疑</a>
+    </div>
+</nav>
+
+
+
+<div class="container-fluid">
+    <div class="content-wrapper">
+
+        <!-- 视频及左右模块 -->
+        <div class="video-row">
+            <!-- 左侧小模块，容器一直显示，内容有视频时显示 -->
+            <div class="side-module">
+                {% if output_video %}
+                <h6>实时车辆速度</h6>
+                <p>平均速度: 54.3 km/h</p>
+                <p>最高速度: 120 km/h</p>
+                <p>最低速度: 20 km/h</p>
+                {% else %}
+                <div style="height:120px;"></div>
+                {% endif %}
+            </div>
+
+            <!-- 中间视频 -->
+            <div class="video-center" id="videoUploadWrapper" title="点击上传文件">
+                {% if output_video %}
+                <video controls id="outputVideo">
+                    {% set ext = output_video.split('.')[-1].lower() %}
+                    {% if ext == 'mp4' %}
+                        <source src="{{ output_video }}" type="video/mp4" />
+                    {% elif ext == 'avi' %}
+                        <source src="{{ output_video }}" type="video/avi" />
+                    {% elif ext == 'mov' %}
+                        <source src="{{ output_video }}" type="video/quicktime" />
+                    {% else %}
+                        <source src="{{ output_video }}" />
+                    {% endif %}
+                    您的浏览器不支持 video 标签。
+                </video>
+                {% else %}
+                <p class="text-center text-muted" style="flex-grow:1; display:flex; align-items:center; justify-content:center; user-select:none;">
+                    暂无视频显示，点击此处上传文件
+                </p>
+                {% endif %}
+
+                <form id="uploadForm" method="POST" action="/detect" enctype="multipart/form-data" style="display:none;">
+                    <input type="file" id="fileInput" name="file" accept="image/*,video/*" />
+                </form>
+            </div>
+
+            <!-- 右侧小模块，容器一直显示，内容有视频时显示 -->
+            <div class="side-module">
+                {% if output_video %}
+                <h6>路口拥堵状况</h6>
+                <p>当前拥堵指数：中等</p>
+                <p>车流量：约8辆/小时</p>
+                <p>信号灯状态：正常</p>
+                {% else %}
+                <div style="height:120px;"></div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 检测趋势图 + 统计 -->
+        <div class="bottom-row">
+            <div class="module-left">
+                <h5>检测趋势图</h5>
+                <div class="chart-container" id="inlineChartContainer" title="点击放大趋势图">
+                    {% if chart_labels and chart_values %}
+                        <canvas id="inlineChart"></canvas>
+                    {% else %}
+                        <p class="text-center text-muted">暂无检测趋势图</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="module-right">
+                <h5>所有帧统计汇总</h5>
+                <div class="counts-summary-row">
+                    <div>
+                        <canvas id="countsPieChart"></canvas>
+                    </div>
+                    <div>
+                        {% if counts_data %}
+                        <ul class="list-group">
+                            {% for cls, total in counts_data.items() %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                {{ cls }}
+                                <span class="badge bg-success rounded-pill">{{ total }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p class="text-center text-muted">暂无统计数据</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- 放大趋势图遮罩层 -->
+<div id="chartOverlay" aria-hidden="true">
+    <div class="chart-popup" role="dialog" aria-modal="true" aria-labelledby="chartPopupTitle">
+        <button class="close-btn" aria-label="关闭放大趋势图">&times;</button>
+        <h5 id="chartPopupTitle" style="text-align:center; margin-bottom: 1rem;">检测趋势图 - 放大视图</h5>
+        <canvas id="inlineChartLarge" style="flex-grow:1;"></canvas>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    // 上传视频相关
+    document.getElementById('videoUploadWrapper').addEventListener('click', () => {
+        document.getElementById('fileInput').click();
+    });
+    document.getElementById('fileInput').addEventListener('change', function() {
+        if (this.files.length > 0) {
+            document.getElementById('uploadForm').submit();
+        }
+    });
+
+    // 生成合理的随机数，返回[min, max]之间的整数
+    function getRandomInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    // 生成合理的随机浮点数，保留n位小数
+    function getRandomFloat(min, max, decimals = 1) {
+      const num = Math.random() * (max - min) + min;
+      return Number(num.toFixed(decimals));
+    }
+
+    // 随机选择拥堵等级
+    function getRandomCongestionLevel() {
+      const levels = ['低', '中等', '高'];
+      return levels[getRandomInt(0, levels.length - 1)];
+    }
+
+    // 随机选择信号灯状态
+    function getRandomSignalStatus() {
+      const statuses = ['正常', '异常', '维护中'];
+      return statuses[getRandomInt(0, statuses.length - 1)];
+    }
+
+    // 页面加载完后执行，只有有视频时填充随机数据
+    document.addEventListener('DOMContentLoaded', () => {
+      {% if output_video %}
+      // 实时车辆速度模块
+      const speedModule = document.querySelector('.video-row .side-module:nth-child(1)');
+      if (speedModule) {
+        const avgSpeed = getRandomFloat(30, 80);
+        const maxSpeed = Math.min(getRandomInt(avgSpeed + 20, avgSpeed + 60), 150);
+        const minSpeed = Math.max(getRandomInt(10, avgSpeed - 10), 0);
+
+        speedModule.innerHTML = `
+          <h6>实时车辆速度</h6>
+          <p>平均速度: ${avgSpeed} km/h</p>
+          <p>最高速度: ${maxSpeed} km/h</p>
+          <p>最低速度: ${minSpeed} km/h</p>
+        `;
+      }
+
+      // 路口拥堵状况模块
+      const congestionModule = document.querySelector('.video-row .side-module:nth-child(3)');
+      if (congestionModule) {
+        const congestionLevel = getRandomCongestionLevel();
+        const flowRate = getRandomInt(5, 20);  // 5~20辆/小时
+        const signalStatus = getRandomSignalStatus();
+
+        congestionModule.innerHTML = `
+          <h6>路口拥堵状况</h6>
+          <p>当前拥堵指数：${congestionLevel}</p>
+          <p>车流量：约${flowRate}辆/小时</p>
+          <p>信号灯状态：${signalStatus}</p>
+        `;
+      }
+      {% endif %}
+    });
+
+    // 画原始趋势图 + LSTM预测折线
+    {% if chart_labels and chart_values %}
+    const ctxInline = document.getElementById('inlineChart').getContext('2d');
+    const labelsInline = {{ chart_labels | tojson }};
+    const dataInline = {{ chart_values | tojson }};
+    const lstmForecast = {{ lstm_forecast | tojson }};
+
+    const datasetsInline = [
+        {
+            label: '每帧检测数量',
+            data: dataInline,
+            borderColor: 'rgba(13, 110, 253, 1)',
+            backgroundColor: 'rgba(13, 110, 253, 0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 2,
+            pointHoverRadius: 4
+        }
+    ];
+
+    if (lstmForecast.length === labelsInline.length) {
+        datasetsInline.push({
+            label: 'LSTM预测车流量',
+            data: lstmForecast,
+            borderColor: 'rgba(255, 99, 132, 1)',
+            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+            fill: false,
+            tension: 0.3,
+            pointRadius: 2,
+            pointHoverRadius: 4,
+            borderDash: [6, 4]
+        });
+    }
+
+    const inlineChart = new Chart(ctxInline, {
+        type: 'line',
+        data: {
+            labels: labelsInline,
+            datasets: datasetsInline
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            },
+            scales: {
+                x: { display: false },
+                y: { beginAtZero: true }
+            }
+        }
+    });
+    {% endif %}
+
+    // 饼图
+    {% if counts_data %}
+    const countsLabels = {{ counts_data.keys() | list | tojson }};
+    const countsValues = {{ counts_data.values() | list | tojson }};
+
+    const ctxPie = document.getElementById('countsPieChart').getContext('2d');
+    new Chart(ctxPie, {
+        type: 'pie',
+        data: {
+            labels: countsLabels,
+            datasets: [{
+                data: countsValues,
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.6)',
+                    'rgba(54, 162, 235, 0.6)',
+                    'rgba(255, 206, 86, 0.6)',
+                    'rgba(75, 192, 192, 0.6)',
+                    'rgba(153, 102, 255, 0.6)',
+                    'rgba(255, 159, 64, 0.6)'
+                ],
+                borderColor: '#fff',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+    {% endif %}
+
+    // 放大趋势图逻辑，含LSTM预测线
+    (function() {
+        const overlay = document.getElementById('chartOverlay');
+        const closeBtn = overlay.querySelector('.close-btn');
+        const inlineChartContainer = document.getElementById('inlineChartContainer');
+        const inlineChartLargeCanvas = document.getElementById('inlineChartLarge');
+        let largeChartInstance = null;
+
+        inlineChartContainer.addEventListener('click', () => {
+            if (!overlay.classList.contains('active')) {
+                overlay.classList.add('active');
+                if (!largeChartInstance) {
+                    const largeDatasets = [
+                        {
+                            label: '每帧检测数量',
+                            data: labelsInline.map((_, i) => dataInline[i]),
+                            borderColor: 'rgba(13, 110, 253, 1)',
+                            backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 3,
+                            pointHoverRadius: 6
+                        }
+                    ];
+                    if (lstmForecast.length === labelsInline.length) {
+                        largeDatasets.push({
+                            label: 'LSTM预测车流量',
+                            data: lstmForecast,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                            fill: false,
+                            tension: 0.3,
+                            pointRadius: 3,
+                            pointHoverRadius: 6,
+                            borderDash: [6, 4]
+                        });
+                    }
+                    largeChartInstance = new Chart(inlineChartLargeCanvas.getContext('2d'), {
+                        type: 'line',
+                        data: {
+                            labels: labelsInline,
+                            datasets: largeDatasets
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top'
+                                }
+                            },
+                            scales: {
+                                x: { display: true },
+                                y: { beginAtZero: true }
+                            }
+                        }
+                    });
+                }
+            }
+        });
+
+        closeBtn.addEventListener('click', () => {
+            overlay.classList.remove('active');
+        });
+
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                overlay.classList.remove('active');
+            }
+        });
+    })();
+</script>
+</body>
+</html>
